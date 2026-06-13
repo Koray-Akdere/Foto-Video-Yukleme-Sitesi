@@ -24,7 +24,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: false },
   db: { schema: 'storage' } 
 });
-
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'site.html'));
+});
 // Multer Ayarı: Dosyaları diske yazmak yerine doğrudan RAM'de (Memory) tutuyoruz
 // ve bekletmeden Supabase'e gönderiyoruz. Sunucu şişmemiş oluyor.
 const storage = multer.memoryStorage();
@@ -69,6 +71,7 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
   }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Sunucu http://localhost:${PORT} portunda aktif.`);
+  console.log(`Sunucu ${PORT} portunda aktif.`);
 });
