@@ -2,70 +2,73 @@ const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const path = require("path");
-const fs = require("fs");
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Farklı portlardan (örn: frontend'den) gelen istekleri kabul etmek için CORS
 app.use(cors());
+app.use(express.json());
 
-// Yüklenen dosyaların kaydedileceği klasörün varlığını kontrol et, yoksa oluştur
-const uploadDir = "./uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// Multer Ayarları: Dosya adı çakışmasını önlemek ve güvenliği sağlamak
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir); // Dosyalar 'uploads' klasörüne gidecek
-  },
-  filename: function (req, file, cb) {
-    // Dosya adının başına benzersiz olması için timestamp ekliyoruz
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
+// 1. Klasördeki site.html dosyasını ana sayfada göstermek için ayar
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "site.html"));
 });
 
-const upload = multer({ storage: storage });
+// 2. Supabase Bağlantı Ayarları (Güncellenmiş Güvenli Versiyon)
+const SUPABASE_URL = 'https://obiuonwztfycpkfusuky.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gVWigEb4vhoRWtTYtFhtjA_cYY5a1yM';
+
+// db schema ayarını manuel geçerek PGRST125 hatasını bypass ediyoruz
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false },
+  db: { schema: 'storage' } 
+});
+
+// Multer Ayarı: Dosyaları diske yazmak yerine doğrudan RAM'de (Memory) tutuyoruz
+// ve bekletmeden Supabase'e gönderiyoruz. Sunucu şişmemiş oluyor.
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // Maksimum dosya boyutunu 50MB yaptık (Videolar için)
+});
 
 // Dosya Yükleme (Upload) API Endpoint'i
-// 'media' ismi frontend'deki formData.append('media', ...) ile aynı olmalıdır
-app.post("/upload", upload.array("media", 20), (req, res) => {
+app.post("/upload", upload.array("media", 50), async (req, res) => {
   try {
-    console.log(
-      `${req.files.length} adet dosya başarıyla sunucuya kaydedildi.`,
-    );
-    res.status(200).json({ message: "Yükleme başarılı!" });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "Dosya seçilmedi." });
+    }
+
+    const uploadPromises = req.files.map(async (file) => {
+      // Benzersiz dosya adı oluşturma
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const fileName = uniqueSuffix + path.extname(file.originalname);
+
+      // Supabase Storage 'nisanmedya' bucket'ına yükleme yapıyoruz
+      const { data, error } = await supabase.storage
+        .from("nisanmedya")
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (error) throw error;
+      return data;
+    });
+
+    await Promise.all(uploadPromises);
+    res
+      .status(200)
+      .json({ message: "Tüm dosyalar buluta başarıyla yüklendi!" });
   } catch (error) {
-    res.status(500).json({ error: "Dosya yüklenirken bir hata oluştu." });
+    console.error("Supabase Yükleme Hatası:", error);
+    res
+      .status(500)
+      .json({ error: "Dosyalar buluta gönderilirken bir hata oluştu." });
   }
 });
 
-// GÜVENLİK ADIMI: '/uploads' klasörünü express.static() ile dışarıya AÇMIYORUZ.
-// Böylece URL tahmin edilse bile admin dışındaki kimse fotoğrafları göremez.
-
-// Sadece Admin (Nişan Sahipleri) için Basit Listeleme / İndirme Altyapısı
-// Gerçek projede buraya bir şifre kontrolü (Middleware) eklemek gerekir.
-app.get("/secret-admin-panel", (req, res) => {
-  fs.readdir(uploadDir, (err, files) => {
-    if (err) return res.status(500).send("Klasör okunamadı.");
-
-    // Basitçe yüklenen dosyaların isimlerini listeler
-    // İstersen bir zip kütüphanesi kullanarak tüm klasörü tek tıkla indirecek kod yazabilirsin
-    res.send(`
-            <h1>Nişan Fotoğrafları Yönetim Paneli</h1>
-            <p>Toplam Yüklenen Dosya: ${files.length}</p>
-            <ul>
-                ${files.map((file) => `<li>${file}</li>`).join("")}
-            </ul>
-        `);
-  });
-});
-
 app.listen(PORT, () => {
-  console.log(
-    `Nişan backend sunucusu http://localhost:${PORT} portunda çalışıyor.`,
-  );
+  console.log(`Sunucu http://localhost:${PORT} portunda aktif.`);
 });
