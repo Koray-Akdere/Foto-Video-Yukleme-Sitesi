@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bizim Nişan Hatıramız</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        background-color: #f9f6f0;
+      } /* Soft, nişan konseptine uygun bir arka plan */
+    </style>
+  </head>
+  <body class="flex items-center justify-center min-h-screen p-4">
+    <div
+      class="w-full max-w-md p-6 bg-white rounded-2xl shadow-xl text-center border border-amber-100"
+    >
+      <h1 class="text-3xl font-serif text-amber-800 mb-2">
+        Mutlu Günümüze Hoş Geldiniz!
+      </h1>
+      <p class="text-gray-600 text-sm mb-6">
+        Bu özel günden çektiğiniz tüm fotoğraf ve videoları yükleyerek
+        anılarımızı ortak etmeye ne dersiniz?
+      </p>
+
+      <form id="uploadForm" class="space-y-4">
+        <div class="flex items-center justify-center w-full">
+          <label
+            class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-amber-300 rounded-xl cursor-pointer bg-amber-50/50 hover:bg-amber-50 transition"
+          >
+            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+              <svg
+                class="w-10 h-10 mb-3 text-amber-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                ></path>
+              </svg>
+              <p class="text-sm text-gray-700 font-medium">
+                Medya Seç (Fotoğraf / Video)
+              </p>
+              <p class="text-xs text-gray-500 mt-1">
+                Birden fazla dosya seçebilirsiniz
+              </p>
+            </div>
+            <input
+              id="fileInput"
+              type="file"
+              class="hidden"
+              multiple
+              accept="image/*,video/*"
+              required
+            />
+          </label>
+        </div>
+
+        <div
+          id="fileCount"
+          class="text-sm text-amber-900 font-medium hidden"
+        ></div>
+
+        <button
+          type="submit"
+          class="w-full py-3 px-4 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl shadow-md transition-colors"
+        >
+          Anıları Gönder ✨
+        </button>
+      </form>
+
+      <div id="statusMessage" class="mt-4 text-sm font-medium hidden"></div>
+    </div>
+
+    <script>
+      const fileInput = document.getElementById("fileInput");
+      const fileCount = document.getElementById("fileCount");
+      const uploadForm = document.getElementById("uploadForm");
+      const statusMessage = document.getElementById("statusMessage");
+
+      // Dosya seçildiğinde tetiklenir
+      fileInput.addEventListener("change", () => {
+        const count = fileInput.files.length;
+        if (count > 0) {
+          fileCount.textContent = `${count} dosya seçildi.`;
+          fileCount.classList.remove("hidden");
+        }
+      });
+
+      // Form gönderildiğinde (Yüklendiğinde) tetiklenir
+      uploadForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const files = fileInput.files;
+        if (files.length === 0) return;
+
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+          formData.append("media", files[i]);
+        }
+
+        // Arayüz durumunu güncelle
+        statusMessage.textContent =
+          "Anılarınız yükleniyor, lütfen sayfayı kapatmayın... ⏳";
+        statusMessage.className = "mt-4 text-sm font-medium text-blue-600";
+        statusMessage.classList.remove("hidden");
+
+        try {
+          // Kendi backend API'mize istek atıyoruz
+          const response = await fetch("http://localhost:3000/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (response.ok) {
+            statusMessage.textContent =
+              "Harika! Fotoğraflarınız başarıyla ulaştı. Teşekkür ederiz! 💕";
+            statusMessage.className = "mt-4 text-sm font-medium text-green-600";
+            uploadForm.reset();
+            fileCount.classList.add("hidden");
+          } else {
+            throw new Error("Yükleme başarısız.");
+          }
+        } catch (error) {
+          statusMessage.textContent =
+            "Bir hata oluştu. Lütfen tekrar deneyin. ❌";
+          statusMessage.className = "mt-4 text-sm font-medium text-red-600";
+        }
+      });
+    </script>
+  </body>
+</html>
