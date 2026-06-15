@@ -33,29 +33,33 @@
       ></div>
 
       <!-- ======================================================== -->
-      <!-- ÜST KISIM: RESİM UYUMU GARANTİLENMİŞ FOTOĞRAF ALANI      -->
+      <!-- ÜST KISIM: SOL ÜSTTE METİN OLAN FOTOĞRAF ALANI            -->
       <!-- ======================================================== -->
       <div
         class="w-full h-[240px] relative overflow-hidden z-10 border-b border-[#d4af37]/20 bg-[#eadecc]"
       >
-        <!-- Boşluksuz ve en kararlı düz isim versiyonu -->
+        <!-- Çiftin Fotoğrafı (Uzantıyı bir önceki adımdaki gibi .jpeg olarak bıraktım) -->
         <img
+          id="coverImage"
           src="kapak.jpeg"
           alt="Ebru & Berkay"
           class="w-full h-full object-cover object-center absolute inset-0"
         />
 
-        <!-- Fotoğrafın Altındaki Karartma Gradyanı -->
+        <!-- Yazıların Üst Tarafında Yumuşak ve Zarif Bir Kontrast Koruması (Yazılar kaybolmasın diye) -->
         <div
-          class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent flex flex-col justify-end p-6 text-white z-10"
-        >
+          class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-transparent pointer-events-none z-10"
+        ></div>
+
+        <!-- Sol Üste Taşınan Başlık ve Tarih Bloğu -->
+        <div class="absolute top-6 left-6 right-6 text-white z-20 text-left">
           <h1
-            class="text-2xl md:text-3xl font-serif font-bold tracking-wide drop-shadow-md"
+            class="text-2xl md:text-3xl font-serif font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
           >
-            Ebru & Berkay Nişanı
+            Ebru & Berkay Nişan
           </h1>
           <p
-            class="text-xs font-light tracking-widest mt-1 opacity-95 flex items-center gap-1 drop-shadow-sm"
+            class="text-xs font-light tracking-widest mt-0.5 opacity-95 flex items-center gap-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]"
           >
             📅 22 Ağustos 2026
           </p>
