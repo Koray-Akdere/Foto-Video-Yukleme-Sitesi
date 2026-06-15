@@ -10,6 +10,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Kesi̇n Çözüm: Ana dizindeki resim, logo gibi statik dosyaların tarayıcı tarafından okunabilmesini sağlar
+app.use(express.static(path.join(__dirname)));
+
 // 1. Ana sayfada site.html dosyasını gösterme
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "site.html"));
@@ -38,9 +41,7 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
       return res.status(400).json({ error: "Dosya seçilmedi." });
     }
 
-    // Frontend'den gelen İsim ve Not bilgilerini alıyoruz
     const rawName = req.body.name || "Anonim";
-    // Türkçe karakterleri ve boşlukları temizleyerek güvenli bir klasör adı oluşturuyoruz
     const folderName = rawName
       .trim()
       .replace(/\s+/g, "_")
@@ -61,12 +62,10 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
     const timestamp = Date.now();
     const uploadPromises = [];
 
-    // 1. ADIM: Eğer kullanıcı bir not yazdıysa, bunu bir .txt dosyası yapıp klasöre yüklüyoruz
+    // Not varsa .txt yapıp yükleme
     if (note.trim() !== "") {
       const txtContent = `Gönderen: ${rawName}\nTarih: ${new Date().toLocaleString("tr-TR")}\n\nNot:\n${note}`;
       const txtBuffer = Buffer.from(txtContent, "utf-8");
-
-      // Klasörün içine "gonderen_isim_not_timestamp.txt" adıyla kaydedilir
       const txtFileName = `${folderName}/not_${timestamp}.txt`;
 
       const txtUpload = supabase.storage
@@ -79,10 +78,9 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
       uploadPromises.push(txtUpload);
     }
 
-    // 2. ADIM: Fotoğraf ve Videoları klasörün içine yükleme
+    // Fotoğraf ve Videoları yükleme
     req.files.forEach((file, index) => {
       const fileExtension = path.extname(file.originalname);
-      // Dosya adının başına klasör adını ekleyerek (folderName/) sanal klasör oluşturuyoruz
       const fileName = `${folderName}/medya_${timestamp}_${index}${fileExtension}`;
 
       const fileUpload = supabase.storage
@@ -95,10 +93,7 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
       uploadPromises.push(fileUpload);
     });
 
-    // Tüm yükleme işlemlerini eşzamanlı olarak başlatıp bekliyoruz
     const results = await Promise.all(uploadPromises);
-
-    // Supabase'den dönen hataları kontrol etme
     const hasError = results.some((res) => res.error);
     if (hasError) {
       const firstError = results.find((res) => res.error).error;
