@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ebru & Berkay Nişan Hatırası</title>
-    <!-- Tailwind CSS v4 -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600&display=swap");
@@ -20,11 +19,9 @@
     </style>
   </head>
   <body class="flex items-center justify-center min-h-screen p-4 sm:p-6">
-    <!-- Ana Davetiye Kart Tuvali -->
     <div
       class="w-full max-w-md bg-[#fffefb] rounded-3xl shadow-2xl border border-[#d4af37]/25 relative overflow-hidden flex flex-col"
     >
-      <!-- İnce Çift Katmanlı Gold Süsleme Sınırları -->
       <div
         class="absolute inset-2 border border-[#d4af37]/15 rounded-2xl pointer-events-none z-20"
       ></div>
@@ -32,13 +29,9 @@
         class="absolute inset-3 border border-[#d4af37]/30 rounded-2xl pointer-events-none z-20"
       ></div>
 
-      <!-- ======================================================== -->
-      <!-- ÜST KISIM: SOL ÜSTTE METİN OLAN FOTOĞRAF ALANI            -->
-      <!-- ======================================================== -->
       <div
         class="w-full h-[240px] relative overflow-hidden z-10 border-b border-[#d4af37]/20 bg-[#eadecc]"
       >
-        <!-- Çiftin Fotoğrafı (Uzantıyı bir önceki adımdaki gibi .jpeg olarak bıraktım) -->
         <img
           id="coverImage"
           src="kapak.jpeg"
@@ -46,12 +39,10 @@
           class="w-full h-full object-cover object-center absolute inset-0"
         />
 
-        <!-- Yazıların Üst Tarafında Yumuşak ve Zarif Bir Kontrast Koruması (Yazılar kaybolmasın diye) -->
         <div
           class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-transparent pointer-events-none z-10"
         ></div>
 
-        <!-- Sol Üste Taşınan Başlık ve Tarih Bloğu -->
         <div class="absolute top-6 left-6 right-6 text-white z-20 text-left">
           <h1
             class="text-2xl md:text-3xl font-serif font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
@@ -66,13 +57,9 @@
         </div>
       </div>
 
-      <!-- ======================================================== -->
-      <!-- ALT KISIM: İNTERAKTİF FORM ALANI                        -->
-      <!-- ======================================================== -->
       <div
-        class="p-6 text-center flex-1 flex flex-col justify-between relative z-10"
+        class="p-6 pb-8 text-center flex-1 flex flex-col justify-between relative z-10"
       >
-        <!-- Karşılama Mesajı -->
         <div class="text-center pt-1 select-none">
           <div class="text-xl mb-1">💍</div>
           <h2
@@ -87,7 +74,6 @@
           </p>
         </div>
 
-        <!-- Form Alanı -->
         <form id="uploadForm" class="space-y-3 text-left w-full">
           <div>
             <label class="block text-xs font-semibold text-[#523e1f] mb-1"
@@ -165,6 +151,12 @@
             id="statusMessage"
             class="w-full text-center text-[11px] font-medium hidden p-2 rounded-lg transition-all"
           ></div>
+        </div>
+
+        <div
+          class="absolute bottom-4 right-5 text-[9px] font-light text-[#806943]/50 tracking-wider select-none pointer-events-none"
+        >
+          Developed by Koray Akdere
         </div>
       </div>
     </div>
