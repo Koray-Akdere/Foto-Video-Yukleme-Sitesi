@@ -8,7 +8,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Form verilerini yakalamak için eklendi
+app.use(express.urlencoded({ extended: true }));
 
 // 1. Ana sayfada site.html dosyasını gösterme
 app.get("/", (req, res) => {
@@ -39,40 +39,77 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
     }
 
     // Frontend'den gelen İsim ve Not bilgilerini alıyoruz
-    // İsimdeki boşlukları dosya adında sorun yaratmaması için alt çizgiye (_) çeviriyoruz
     const rawName = req.body.name || "Anonim";
-    const cleanName = rawName.trim().replace(/\s+/g, "_");
+    // Türkçe karakterleri ve boşlukları temizleyerek güvenli bir klasör adı oluşturuyoruz
+    const folderName = rawName
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/ğ/g, "g")
+      .replace(/Ğ/g, "G")
+      .replace(/ü/g, "u")
+      .replace(/Ü/g, "U")
+      .replace(/ş/g, "s")
+      .replace(/Ş/g, "S")
+      .replace(/ı/g, "i")
+      .replace(/İ/g, "I")
+      .replace(/ö/g, "o")
+      .replace(/Ö/g, "O")
+      .replace(/ç/g, "c")
+      .replace(/Ç/g, "C");
+
     const note = req.body.note || "";
+    const timestamp = Date.now();
+    const uploadPromises = [];
 
-    const uploadPromises = req.files.map(async (file, index) => {
-      // Benzersiz zaman damgası ekleyerek çakışmayı önlüyoruz
-      const timestamp = Date.now() + index;
+    // 1. ADIM: Eğer kullanıcı bir not yazdıysa, bunu bir .txt dosyası yapıp klasöre yüklüyoruz
+    if (note.trim() !== "") {
+      const txtContent = `Gönderen: ${rawName}\nTarih: ${new Date().toLocaleString("tr-TR")}\n\nNot:\n${note}`;
+      const txtBuffer = Buffer.from(txtContent, "utf-8");
+
+      // Klasörün içine "gonderen_isim_not_timestamp.txt" adıyla kaydedilir
+      const txtFileName = `${folderName}/not_${timestamp}.txt`;
+
+      const txtUpload = supabase.storage
+        .from("nisanmedya")
+        .upload(txtFileName, txtBuffer, {
+          contentType: "text/plain; charset=utf-8",
+          upsert: false,
+        });
+
+      uploadPromises.push(txtUpload);
+    }
+
+    // 2. ADIM: Fotoğraf ve Videoları klasörün içine yükleme
+    req.files.forEach((file, index) => {
       const fileExtension = path.extname(file.originalname);
+      // Dosya adının başına klasör adını ekleyerek (folderName/) sanal klasör oluşturuyoruz
+      const fileName = `${folderName}/medya_${timestamp}_${index}${fileExtension}`;
 
-      // Dosya adını gönderen kişinin ismi yapıyoruz
-      const fileName = `${cleanName}_${timestamp}${fileExtension}`;
-
-      // Supabase Storage 'nisanmedya' bucket'ına yükleme
-      const { data, error } = await supabase.storage
+      const fileUpload = supabase.storage
         .from("nisanmedya")
         .upload(fileName, file.buffer, {
           contentType: file.mimetype,
           upsert: false,
-          // Opsiyonel: Kişinin notunu ve orijinal adını dosyanın metadata kısmına gömüyoruz
-          metadata: {
-            gonderen: rawName,
-            mesaj: note,
-          },
         });
 
-      if (error) throw error;
-      return data;
+      uploadPromises.push(fileUpload);
     });
 
-    await Promise.all(uploadPromises);
-    res.status(200).json({ message: "Tüm anılarınız başarıyla yüklendi!" });
+    // Tüm yükleme işlemlerini eşzamanlı olarak başlatıp bekliyoruz
+    const results = await Promise.all(uploadPromises);
+
+    // Supabase'den dönen hataları kontrol etme
+    const hasError = results.some((res) => res.error);
+    if (hasError) {
+      const firstError = results.find((res) => res.error).error;
+      throw firstError;
+    }
+
+    res
+      .status(200)
+      .json({ message: "Tüm anılarınız klasörünüze başarıyla yüklendi!" });
   } catch (error) {
-    console.error("Supabase Yükleme Hatası:", error);
+    console.error("Supabase Klasörleme ve Yükleme Hatası:", error);
     res
       .status(500)
       .json({ error: "Dosyalar buluta gönderilirken bir hata oluştu." });
