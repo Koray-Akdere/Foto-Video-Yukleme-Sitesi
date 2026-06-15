@@ -8,30 +8,27 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Form verilerini yakalamak için eklendi
 
-// 1. Klasördeki site.html dosyasını ana sayfada göstermek için ayar
+// 1. Ana sayfada site.html dosyasını gösterme
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "site.html"));
 });
 
-// 2. Supabase Bağlantı Ayarları (Güncellenmiş Güvenli Versiyon)
-const SUPABASE_URL = 'https://obiuonwztfycpkfusuky.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_gVWigEb4vhoRWtTYtFhtjA_cYY5a1yM';
+// 2. Supabase Bağlantı Ayarları
+const SUPABASE_URL = "https://obiuonwztfycpkfusuky.supabase.co";
+const SUPABASE_KEY = "sb_publishable_gVWigEb4vhoRWtTYtFhtjA_cYY5a1yM";
 
-// db schema ayarını manuel geçerek PGRST125 hatasını bypass ediyoruz
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: false },
-  db: { schema: 'storage' } 
+  db: { schema: "storage" },
 });
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'site.html'));
-});
-// Multer Ayarı: Dosyaları diske yazmak yerine doğrudan RAM'de (Memory) tutuyoruz
-// ve bekletmeden Supabase'e gönderiyoruz. Sunucu şişmemiş oluyor.
+
+// Multer Ayarı: RAM üzerinde tutma
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // Maksimum dosya boyutunu 50MB yaptık (Videolar için)
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB Sınırı
 });
 
 // Dosya Yükleme (Upload) API Endpoint'i
@@ -41,17 +38,31 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
       return res.status(400).json({ error: "Dosya seçilmedi." });
     }
 
-    const uploadPromises = req.files.map(async (file) => {
-      // Benzersiz dosya adı oluşturma
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      const fileName = uniqueSuffix + path.extname(file.originalname);
+    // Frontend'den gelen İsim ve Not bilgilerini alıyoruz
+    // İsimdeki boşlukları dosya adında sorun yaratmaması için alt çizgiye (_) çeviriyoruz
+    const rawName = req.body.name || "Anonim";
+    const cleanName = rawName.trim().replace(/\s+/g, "_");
+    const note = req.body.note || "";
 
-      // Supabase Storage 'nisanmedya' bucket'ına yükleme yapıyoruz
+    const uploadPromises = req.files.map(async (file, index) => {
+      // Benzersiz zaman damgası ekleyerek çakışmayı önlüyoruz
+      const timestamp = Date.now() + index;
+      const fileExtension = path.extname(file.originalname);
+
+      // Dosya adını gönderen kişinin ismi yapıyoruz
+      const fileName = `${cleanName}_${timestamp}${fileExtension}`;
+
+      // Supabase Storage 'nisanmedya' bucket'ına yükleme
       const { data, error } = await supabase.storage
         .from("nisanmedya")
         .upload(fileName, file.buffer, {
           contentType: file.mimetype,
           upsert: false,
+          // Opsiyonel: Kişinin notunu ve orijinal adını dosyanın metadata kısmına gömüyoruz
+          metadata: {
+            gonderen: rawName,
+            mesaj: note,
+          },
         });
 
       if (error) throw error;
@@ -59,9 +70,7 @@ app.post("/upload", upload.array("media", 50), async (req, res) => {
     });
 
     await Promise.all(uploadPromises);
-    res
-      .status(200)
-      .json({ message: "Tüm dosyalar buluta başarıyla yüklendi!" });
+    res.status(200).json({ message: "Tüm anılarınız başarıyla yüklendi!" });
   } catch (error) {
     console.error("Supabase Yükleme Hatası:", error);
     res
