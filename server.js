@@ -4,68 +4,88 @@ const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 
+// 1. EKSİK OLAN ADMİN TANIMI EKLENDİ
+const admin = require("firebase-admin");
+
+// 2. KLASÖR YAPINA GÖRE ÜST DİZİNDEKİ GİZLİ ANAHTARI ÇAĞIRIYORUZ (Sadece 1 kez tanımlandı)
+// Eski hali: const serviceAccount = require("../firebase-key.json");
+// Yeni hali: Render'ın gizli dosyayı koyduğu ana kök dizine göre ayarlıyoruz
+const serviceAccount = require("./firebase-key.json");
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Farklı portlardan (örn: frontend'den) gelen istekleri kabul etmek için CORS
 app.use(cors());
+app.use(express.json());
 
-// Yüklenen dosyaların kaydedileceği klasörün varlığını kontrol et, yoksa oluştur
-const uploadDir = "./uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// Multer Ayarları: Dosya adı çakışmasını önlemek ve güvenliği sağlamak
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir); // Dosyalar 'uploads' klasörüne gidecek
-  },
-  filename: function (req, file, cb) {
-    // Dosya adının başına benzersiz olması için timestamp ekliyoruz
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
+// Firebase Admin SDK Başlatma
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  // Firebase Storage ekranında üstte yazan bucket adı (gs:// olmadan yazılması daha sağlıklıdır)
+  storageBucket: "ebru-berkay-nisan.appspot.com",
 });
 
-const upload = multer({ storage: storage });
+const bucket = admin.storage().bucket();
 
-// Dosya Yükleme (Upload) API Endpoint'i
-// 'media' ismi frontend'deki formData.append('media', ...) ile aynı olmalıdır
-app.post("/upload", upload.array("media", 20), (req, res) => {
+// Multer Ayarları
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // Maks 100MB
+});
+
+// Yükleme Endpoint'i
+app.post("/upload", upload.array("media"), async (req, res) => {
   try {
-    console.log(
-      `${req.files.length} adet dosya başarıyla sunucuya kaydedildi.`,
-    );
-    res.status(200).json({ message: "Yükleme başarılı!" });
+    const { name, note } = req.body;
+    const files = req.files;
+
+    if (!name || !files || files.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "Eksik bilgi veya dosya gönderilmedi." });
+    }
+
+    const folderName = `${name.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}`;
+
+    // A) Mesajı TXT olarak kaydetme
+    const txtFileName = `nisanmedya/${folderName}/mesaj_ve_tebrik.txt`;
+    const txtFile = bucket.file(txtFileName);
+    const txtContent = `Gönderen: ${name}\nTebrik Notu: ${note || "Not bırakılmadı."}\nTarih: ${new Date().toLocaleString("tr-TR")}`;
+
+    await txtFile.save(txtContent, {
+      metadata: { contentType: "text/plain; charset=utf-8" },
+    });
+
+    // B) Medyaları yükleme
+    const uploadPromises = files.map((file) => {
+      const blob = bucket.file(
+        `nisanmedya/${folderName}/${Date.now()}_${file.originalname}`,
+      );
+
+      return new Promise((resolve, reject) => {
+        const blobStream = blob.createWriteStream({
+          metadata: {
+            contentType: file.mimetype,
+          },
+        });
+
+        blobStream.on("error", (err) => reject(err));
+        blobStream.on("finish", () => resolve(blob.name));
+
+        blobStream.end(file.buffer);
+      });
+    });
+
+    await Promise.all(uploadPromises);
+
+    res
+      .status(200)
+      .json({ message: "Anılar başarıyla Firebase albümüne yüklendi! 💕" });
   } catch (error) {
-    res.status(500).json({ error: "Dosya yüklenirken bir hata oluştu." });
+    console.error("Yükleme Hatası:", error);
+    res.status(500).json({ error: "Sunucu tarafında bir hata oluştu." });
   }
 });
 
-// GÜVENLİK ADIMI: '/uploads' klasörünü express.static() ile dışarıya AÇMIYORUZ.
-// Böylece URL tahmin edilse bile admin dışındaki kimse fotoğrafları göremez.
-
-// Sadece Admin (Nişan Sahipleri) için Basit Listeleme / İndirme Altyapısı
-// Gerçek projede buraya bir şifre kontrolü (Middleware) eklemek gerekir.
-app.get("/secret-admin-panel", (req, res) => {
-  fs.readdir(uploadDir, (err, files) => {
-    if (err) return res.status(500).send("Klasör okunamadı.");
-
-    // Basitçe yüklenen dosyaların isimlerini listeler
-    // İstersen bir zip kütüphanesi kullanarak tüm klasörü tek tıkla indirecek kod yazabilirsin
-    res.send(`
-            <h1>Nişan Fotoğrafları Yönetim Paneli</h1>
-            <p>Toplam Yüklenen Dosya: ${files.length}</p>
-            <ul>
-                ${files.map((file) => `<li>${file}</li>`).join("")}
-            </ul>
-        `);
-  });
-});
-
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(
-    `Nişan backend sunucusu http://localhost:${PORT} portunda çalışıyor.`,
-  );
+  console.log(`Server ${PORT} portunda çalışıyor.`);
 });
