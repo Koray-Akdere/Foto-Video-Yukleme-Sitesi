@@ -8,18 +8,16 @@ app.use(cors());
 app.use(express.json());
 
 // 1. Cloudinary Yapılandırması
-// Dashboard sayfasındaki bilgileri buraya tırnak işaretleri içine yapıştır:
 cloudinary.config({
   cloud_name: "xomwomfk",
   api_key: "837141234163841",
   api_secret: "_SaOgqeGi0NpWh6glkwMRsTt9uQ",
 });
 
-// Multer ile gelen dosyaları doğrudan bellek üzerinde tutuyoruz
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // Dosya başına maks 100MB (Videolar için ideal)
+  limits: { fileSize: 100 * 1024 * 1024 },
 });
 
 // 2. Yükleme Endpoint'i
@@ -34,18 +32,19 @@ app.post("/upload", upload.array("media"), async (req, res) => {
         .json({ error: "Eksik bilgi veya dosya gönderilmedi." });
     }
 
-    // Klasör ismini temiz karakterlerle ve benzersiz bir ID ile kurguluyoruz
-    const folderName = `nisanmedya/${name.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}`;
+    // Klasör isminden zaman damgasını KALDIRDIK. Artık sadece isme özel sabit bir klasör olacak.
+    const folderName = `nisanmedya/${name.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-    // A) Misafirin Mesajını TXT Dosyası Olarak Raw Formatında Cloudinary'ye Yüklüyoruz
-    const txtContent = `Gönderen: ${name}\nTebrik Notu: ${note || "Not bırakılmadı."}\Tarih: ${new Date().toLocaleString("tr-TR")}`;
+    // A) Tebrik Notunu TXT olarak benzersiz bir isimle yüklüyoruz (Üzerine yazmasın diye sonuna timestamp ekledik)
+    const txtContent = `Gönderen: ${name}\nTebrik Notu: ${note || "Not bırakılmadı."}\nTarih: ${new Date().toLocaleString("tr-TR")}`;
+    const timestamp = Date.now();
 
     await new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
           {
             resource_type: "raw",
-            public_id: `${folderName}/mesaj_ve_tebrik.txt`,
+            public_id: `${folderName}/mesaj_ve_tebrik_${timestamp}.txt`, // Her gönderimde ayrı txt dosyası oluşturur
           },
           (error, result) => {
             if (error) reject(error);
@@ -55,10 +54,9 @@ app.post("/upload", upload.array("media"), async (req, res) => {
         .end(Buffer.from(txtContent, "utf-8"));
     });
 
-    // B) Tüm Fotoğraf ve Videoları Cloudinary'ye Akıtıyoruz
+    // B) Tüm Fotoğraf ve Videoları Aynı Klasöre Akıtıyoruz
     const uploadPromises = files.map((file) => {
       return new Promise((resolve, reject) => {
-        // Dosya türünü (Mimetype) kontrol ederek resource_type belirliyoruz
         const isVideo = file.mimetype.startsWith("video");
         const originalNameWithoutExt = file.originalname
           .split(".")
@@ -69,8 +67,8 @@ app.post("/upload", upload.array("media"), async (req, res) => {
           .upload_stream(
             {
               resource_type: isVideo ? "video" : "image",
-              folder: folderName,
-              public_id: `${Date.now()}_${originalNameWithoutExt.replace(/[^a-zA-Z0-9]/g, "_")}`,
+              folder: folderName, // Aynı isimli klasörün içine yazar
+              public_id: `${Date.now()}_${originalNameWithoutExt.replace(/[^a-zA-Z0-9]/g, "_")}`, // Dosya adı benzersiz kalır
             },
             (error, result) => {
               if (error) reject(error);
@@ -81,12 +79,11 @@ app.post("/upload", upload.array("media"), async (req, res) => {
       });
     });
 
-    // Tüm dosyaların yüklenmesini bekle
     await Promise.all(uploadPromises);
 
     res
       .status(200)
-      .json({ message: "Anılar başarıyla Cloudinary albümüne yüklendi! 💕" });
+      .json({ message: "Anılar başarıyla tek bir klasörde toplandı! 💕" });
   } catch (error) {
     console.error("Cloudinary Yükleme Hatası:", error);
     res.status(500).json({ error: "Sunucu tarafında bir hata oluştu." });
