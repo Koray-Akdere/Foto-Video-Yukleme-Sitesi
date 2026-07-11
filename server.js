@@ -2,12 +2,13 @@ const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const cloudinary = require("cloudinary").v2;
+const textToImage = require("text-to-image"); // Notu görsele çeviren kütüphane
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Cloudinary Yapılandırması
+// 1. Cloudinary Yapılandırması (Kendi bilgilerini buraya gir)
 cloudinary.config({
   cloud_name: "xomwomfk",
   api_key: "837141234163841",
@@ -32,26 +33,39 @@ app.post("/upload", upload.array("media"), async (req, res) => {
         .json({ error: "Eksik bilgi veya dosya gönderilmedi." });
     }
 
-    // Klasör isminden zaman damgasını KALDIRDIK. Artık sadece isme özel sabit bir klasör olacak.
+    // İsme özel klasör yolu
     const folderName = `nisanmedya/${name.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-    // A) Tebrik Notunu TXT olarak benzersiz bir isimle yüklüyoruz (Üzerine yazmasın diye sonuna timestamp ekledik)
-    const txtContent = `Gönderen: ${name}\nTebrik Notu: ${note || "Not bırakılmadı."}\nTarih: ${new Date().toLocaleString("tr-TR")}`;
     const timestamp = Date.now();
 
+    // A) Tebrik Notunu Şık Bir Görsele Dönüştürüp Resim Olarak Yüklüyoruz
+    const formattedText = `GÖNDEREN:\n${name}\n\nTEBRİK NOTU:\n${note || "Not bırakılmadı."}\n\nTarih: ${new Date().toLocaleString("tr-TR")}`;
+
+    // Fildişi rengi arka plana sahip, kahverengi yazılı şık bir dijital mektup kartı üretiyoruz
+    const dataUri = await textToImage.generate(formattedText, {
+      maxWidth: 600,
+      fontSize: 22,
+      fontFamily: "Georgia",
+      lineHeight: 32,
+      margin: 40,
+      bgColor: "#faf6ee",
+      textColor: "#634a24",
+    });
+
+    // Notu doğrudan bir "image" (görsel) olarak yüklüyoruz.
+    // Başına "00_" koyduk ki alfabetik sıralamada klasörün en üstünde ilk bu not görünsün.
     await new Promise((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          {
-            resource_type: "raw",
-            public_id: `${folderName}/mesaj_ve_tebrik_${timestamp}.txt`, // Her gönderimde ayrı txt dosyası oluşturur
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          },
-        )
-        .end(Buffer.from(txtContent, "utf-8"));
+      cloudinary.uploader.upload(
+        dataUri,
+        {
+          folder: folderName,
+          public_id: `00_tebrik_notu_${timestamp}`,
+          resource_type: "image",
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        },
+      );
     });
 
     // B) Tüm Fotoğraf ve Videoları Aynı Klasöre Akıtıyoruz
@@ -67,8 +81,8 @@ app.post("/upload", upload.array("media"), async (req, res) => {
           .upload_stream(
             {
               resource_type: isVideo ? "video" : "image",
-              folder: folderName, // Aynı isimli klasörün içine yazar
-              public_id: `${Date.now()}_${originalNameWithoutExt.replace(/[^a-zA-Z0-9]/g, "_")}`, // Dosya adı benzersiz kalır
+              folder: folderName,
+              public_id: `${Date.now()}_${originalNameWithoutExt.replace(/[^a-zA-Z0-9]/g, "_")}`,
             },
             (error, result) => {
               if (error) reject(error);
@@ -81,11 +95,11 @@ app.post("/upload", upload.array("media"), async (req, res) => {
 
     await Promise.all(uploadPromises);
 
-    res
-      .status(200)
-      .json({ message: "Anılar başarıyla tek bir klasörde toplandı! 💕" });
+    res.status(200).json({
+      message: "Anılar ve tebrik notu başarıyla aynı klasörde toplandı! 💕",
+    });
   } catch (error) {
-    console.error("Cloudinary Yükleme Hatası:", error);
+    console.error("Yükleme Hatası:", error);
     res.status(500).json({ error: "Sunucu tarafında bir hata oluştu." });
   }
 });
